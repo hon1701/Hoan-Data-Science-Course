@@ -1,0 +1,27 @@
+# Python/Jupyter
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ipynb_checkpoints/
+.venv/
+
+# Raw and generated data must not be committed
+data/raw/*.csv
+data/raw/*.part
+data/processed/*.csv
+!data/processed/.gitkeep
+
+# Generated notebook and analysis outputs
+outputs/notebooks/*.ipynb
+!outputs/notebooks/.gitkeep
+outputs/figures/*.png
+!outputs/figures/.gitkeep
+outputs/tables/*.csv
+outputs/tables/*.json
+!outputs/tables/.gitkeep
+
+# Trained models and report QA intermediates
+outputs/models/*.joblib
+!outputs/models/.gitkeep
+reports/qa/
+
