@@ -92,7 +92,12 @@ def verify_saved_metrics(root: Path) -> None:
         source_path = root / "notebooks" / (filename + ".ipynb")
         if source_path.exists():
             source = json.loads(source_path.read_text(encoding="utf-8"))
-            assert [(c["cell_type"], c["source"]) for c in source["cells"]] == [(c["cell_type"], c["source"]) for c in notebook["cells"]], path
+            # nbformat permits either a string or a list of lines for source.
+            content = lambda nb: [(c["cell_type"], "".join(c["source"])) for c in nb["cells"]]
+            assert content(source) == content(notebook), path
+        expected_images = {"01_data_eda": 4, "02_modeling": 0, "03_evaluation": 5, "Fraud_Project_Final": 9}[filename]
+        image_count = sum("image/png" in o.get("data", {}) for c in notebook["cells"] for o in c.get("outputs", []))
+        assert image_count >= expected_images, f"Thiếu hình nhúng: {path}"
 
 
 def main() -> None:
@@ -169,4 +174,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
