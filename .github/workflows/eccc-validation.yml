@@ -1,0 +1,54 @@
+name: ECCC real data validation
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/eccc-final-20260929]
+    paths:
+      - 'ECCC-LITE-FINAL/src/**'
+      - 'ECCC-LITE-FINAL/tests/**'
+      - 'ECCC-LITE-FINAL/notebooks/**'
+      - 'ECCC-LITE-FINAL/scripts/run_full_project.py'
+      - 'ECCC-LITE-FINAL/scripts/verify_project.py'
+      - '.github/workflows/eccc-validation.yml'
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      PYTHONUTF8: '1'
+      MPLBACKEND: Agg
+      OMP_NUM_THREADS: '2'
+      OPENBLAS_NUM_THREADS: '2'
+    defaults:
+      run:
+        working-directory: ECCC-LITE-FINAL
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install project dependencies
+        run: python -m pip install -r requirements.txt numpy==2.3.5 pandas==2.2.3 scikit-learn==1.8.0 matplotlib==3.10.8
+      - name: Run notebooks on verified real data
+        run: |
+          python -m ipykernel install --user --name python3
+          python -X utf8 scripts/run_full_project.py --skip-report 2>&1 | tee outputs/pipeline.log
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: eccc-verified-results
+          retention-days: 30
+          if-no-files-found: error
+          path: |
+            ECCC-LITE-FINAL/outputs/tables/
+            ECCC-LITE-FINAL/outputs/figures/
+            ECCC-LITE-FINAL/outputs/notebooks/
+            ECCC-LITE-FINAL/outputs/tests.xml
+            ECCC-LITE-FINAL/outputs/pipeline.log
+            ECCC-LITE-FINAL/outputs/run_manifest.json
+            ECCC-LITE-FINAL/outputs/requirements-lock.txt

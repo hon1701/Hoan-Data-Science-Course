@@ -5,7 +5,7 @@ import pandas as pd
 import pytest
 
 from src.a1_utils import ID_COLUMN, PROCESSED_COLUMNS, TARGET
-from src.evaluation import select_cost_threshold, select_f1_threshold, top_p_metrics
+from src.evaluation import cost_curve, select_cost_threshold, select_f1_threshold, top_p_metrics
 from src.modeling import MODEL_FEATURE_COLUMNS, split_xy, validate_scores
 
 
@@ -53,3 +53,25 @@ def test_top_p_uses_source_row_as_deterministic_tie_break() -> None:
     table = top_p_metrics(y, scores, ids, rates=(0.25,))
     assert table.loc[0, "k"] == 1
     assert table.loc[0, "tp"] == 0
+
+
+def test_cost_threshold_can_choose_no_alerts() -> None:
+    y = np.array([0, 1])
+    scores = np.array([0.9, 0.1])
+    chosen, _ = select_cost_threshold(y, scores, false_negative_cost=0.1)
+    assert chosen["threshold"] > scores.max()
+    assert (chosen["tp"], chosen["fp"], chosen["fn"]) == (0, 0, 1)
+    assert chosen["expected_cost_per_transaction"] == pytest.approx(0.05)
+
+
+def test_cost_curve_matches_direct_predictions_including_ties() -> None:
+    y = np.array([0, 1, 1, 0, 1])
+    scores = np.array([1.0, 1.0, 0.5, 0.5, 0.0])
+    curve = cost_curve(y, scores)
+    assert len(curve) == len(np.unique(scores)) + 1
+    for row in curve.itertuples():
+        predicted = scores >= row.threshold
+        fp = np.sum(predicted & (y == 0))
+        fn = np.sum(~predicted & (y == 1))
+        assert row.fp == fp and row.fn == fn
+        assert row.expected_cost_per_transaction == pytest.approx((20 * fn + fp) / len(y))

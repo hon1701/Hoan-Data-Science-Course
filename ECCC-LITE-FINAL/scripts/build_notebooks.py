@@ -162,6 +162,8 @@ def main() -> None:
             ),
         ],
     )
+    from add_notebook_explanations import enhance
+    enhance(ROOT)
     print("[OK] Đã tạo 02_modeling.ipynb, 03_evaluation.ipynb và Fraud_Project_Final.ipynb")
 
 

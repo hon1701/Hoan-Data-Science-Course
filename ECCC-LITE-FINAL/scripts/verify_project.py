@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import argparse
 import sys
 from pathlib import Path
 
@@ -13,8 +14,10 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from scripts.verify_a1_outputs import verify as verify_a1  # noqa: E402
-from src.a1_utils import ID_COLUMN  # noqa: E402
+from src.a1_utils import ID_COLUMN, sha256_file  # noqa: E402
 from src.modeling import MODEL_FEATURE_COLUMNS  # noqa: E402
+from src.evaluation import threshold_metrics, top_p_metrics, select_cost_threshold, select_f1_threshold  # noqa: E402
+from sklearn.metrics import average_precision_score, roc_auc_score  # noqa: E402
 
 EXPECTED_FIGURES = [
     "class_distribution.png",
@@ -40,10 +43,66 @@ EXPECTED_TABLES = [
     "modeling_summary.json",
     "evaluation_summary.json",
     "environment_summary.json",
+    "decision_lock.json",
 ]
 
 
+def verify_saved_metrics(root: Path) -> None:
+    """Recompute reported numbers from the exported scores, without fitting."""
+    tables = root / "outputs" / "tables"
+    read_json = lambda name: json.loads((tables / name).read_text(encoding="utf-8"))
+    summary = read_json("evaluation_summary.json")
+    lock = read_json("decision_lock.json")
+    validation = pd.read_csv(tables / "validation_scores.csv", float_precision="round_trip")
+    test = pd.read_csv(tables / "test_scores.csv", float_precision="round_trip")
+    assert sha256_file(tables / "decision_lock.json") == summary["decision_lock_sha256"]
+    for key, filename in [("validation_scores_sha256", "validation_scores.csv"),
+                          ("modeling_summary_sha256", "modeling_summary.json")]:
+        assert lock[key] == sha256_file(tables / filename), filename
+    assert not set(validation[ID_COLUMN]) & set(test[ID_COLUMN])
+    for frame in (validation, test):
+        assert frame[ID_COLUMN].is_unique
+    score_column = "score_" + summary["selected_family"]
+    cost, _ = select_cost_threshold(validation.y_true.to_numpy(), validation[score_column].to_numpy())
+    f1 = select_f1_threshold(validation.y_true.to_numpy(), validation[score_column].to_numpy())
+    assert cost["threshold"] == lock["cost_threshold"]
+    assert f1["threshold"] == lock["f1_threshold"]
+    y, scores = test.y_true.to_numpy(), test.score.to_numpy()
+    np.testing.assert_allclose(average_precision_score(y, scores), summary["test"]["average_precision"], rtol=0, atol=1e-12)
+    np.testing.assert_allclose(roc_auc_score(y, scores), summary["test"]["roc_auc"], rtol=0, atol=1e-12)
+    for threshold_key, metrics_key in [("cost_threshold", "cost_threshold_metrics"),
+                                       ("f1_threshold", "validation_f1_threshold_metrics")]:
+        actual = threshold_metrics(y, scores, lock[threshold_key])
+        expected = summary["test"][metrics_key]
+        for key, value in actual.items():
+            np.testing.assert_allclose(value, expected[key], rtol=0, atol=1e-12)
+    actual_top = top_p_metrics(y, scores, test[ID_COLUMN].to_numpy())
+    expected_top = pd.read_csv(tables / "top_p_metrics.csv", float_precision="round_trip")
+    np.testing.assert_allclose(actual_top.to_numpy(), expected_top.to_numpy(), rtol=1e-12, atol=1e-12)
+    for filename in ["01_data_eda", "02_modeling", "03_evaluation", "Fraud_Project_Final"]:
+        path = root / "outputs" / "notebooks" / (filename + ".executed.ipynb")
+        notebook = json.loads(path.read_text(encoding="utf-8"))
+        counts = []
+        for cell in notebook["cells"]:
+            if cell["cell_type"] == "code" and "".join(cell["source"]).strip():
+                assert cell["execution_count"] is not None, path
+                counts.append(cell["execution_count"])
+                assert not any(o["output_type"] == "error" for o in cell["outputs"]), path
+        assert counts == list(range(1, len(counts) + 1)), path
+        source_path = root / "notebooks" / (filename + ".ipynb")
+        if source_path.exists():
+            source = json.loads(source_path.read_text(encoding="utf-8"))
+            assert [(c["cell_type"], c["source"]) for c in source["cells"]] == [(c["cell_type"], c["source"]) for c in notebook["cells"]], path
+
+
 def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--results-only", action="store_true", help="Đối chiếu số liệu đã xuất, không cần raw/model.")
+    args = parser.parse_args()
+    verify_saved_metrics(ROOT)
+    if args.results_only:
+        print("[OK] Metric, threshold, Top-p và bốn notebook đã được đối chiếu từ output.")
+        return
     verify_a1(ROOT, strict=True)
     tables = ROOT / "outputs" / "tables"
     figures = ROOT / "outputs" / "figures"
@@ -70,6 +129,8 @@ def main() -> None:
         raise AssertionError("Modeling không được truy cập test.")
     if evaluation["test_accessed_after_model_and_threshold_lock"] is not True:
         raise AssertionError("Không có xác nhận khóa model/threshold trước test.")
+    lock = json.loads((tables / "decision_lock.json").read_text(encoding="utf-8"))
+    assert lock["model_sha256"] == sha256_file(ROOT / "outputs/models/selected_model.joblib")
 
     validation_scores = pd.read_csv(tables / "validation_scores.csv")
     test_scores = pd.read_csv(tables / "test_scores.csv")
