@@ -4,11 +4,11 @@ Dự án môn Cơ sở Khoa học Dữ liệu: kiểm chứng dữ liệu, EDA, 
 
 ## Kết quả đã xác minh
 
-- GitHub Actions run [36587391681](https://github.com/hon1701/Hoan-Data-Science-Course/actions/runs/36587391681): dữ liệu thật qua kiểm tra SHA-256, 10 test đạt, cả bốn notebook chạy hết trong kernel mới và bước đối chiếu metric thành công.
+- GitHub Actions run [36662669830](https://github.com/hon1701/Hoan-Data-Science-Course/actions/runs/36662669830): dữ liệu thật qua kiểm tra SHA-256, 10 test đạt, bốn notebook chạy trong kernel mới; báo cáo Word được dựng và verifier xác nhận.
 - Chọn Random Forest `standard` theo AP validation **0,8782** (Logistic Regression: **0,7983**). Threshold chi phí được khóa trên validation ở **0,222083**, với giả định học thuật FN:FP = 20:1.
 - Trên test (56.746 giao dịch, 95 fraud): AP **0,7922**, ROC-AUC **0,9324**, Precision **0,8795**, Recall **0,7684**, F1 **0,8202**; phát hiện 73/95 fraud, có 10 cảnh báo nhầm.
 - Top 1% (568 giao dịch điểm cao nhất) thu hồi **79/95 fraud** (Recall **83,16%**). Bảng Top 0,5%/1%/2% và khoảng tin cậy AP bootstrap nằm trong báo cáo và bảng kết quả.
-- Báo cáo Word khớp `evaluation_summary.json`; bản PDF 21 trang đã render và rà bố cục từng trang. Run CI trên đã chạy với `--skip-report`; báo cáo được tạo sau đó từ chính các bảng kết quả CI và được kiểm tra hash riêng.
+- Báo cáo Word khớp `evaluation_summary.json`; PDF 21 trang được render từ báo cáo này, số trang mục lục được đối chiếu, và toàn bộ trang đã được rà trực quan.
 
 ## Quy tắc thực nghiệm đã khóa
 
@@ -28,7 +28,7 @@ ECCC-LITE-FINAL/
 ├── scripts/                     # chạy pipeline, tạo báo cáo, verifier
 ├── tests/                       # regression/unit tests
 ├── outputs/                     # sinh ra khi chạy, không commit dữ liệu lớn
-└── reports/                     # DOCX, PDF và template
+└── reports/                     # báo cáo Word/PDF và dữ liệu mục lục
 ```
 
 ## Chạy lại trên Windows PowerShell
@@ -52,7 +52,7 @@ python -X utf8 scripts/verify_project.py
 python -X utf8 scripts/verify_report.py
 ```
 
-`outputs/requirements-lock.txt` ghi phiên bản của lần chạy CI đã xác minh. Các notebook nguồn ở `notebooks/`; notebook có output được tải riêng cùng bằng chứng kết quả. Raw CSV, split CSV và model được loại khỏi Git.
+`outputs/requirements-lock.txt` ghi phiên bản của lần chạy CI đã xác minh. Các notebook nguồn ở `notebooks/`; notebook có output và bằng chứng kết quả nằm trong gói kết quả riêng. Raw CSV, split CSV và model được loại khỏi Git.
 
 ## Artifact và báo cáo
 
