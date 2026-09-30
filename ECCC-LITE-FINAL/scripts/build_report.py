@@ -5,29 +5,91 @@ from __future__ import annotations
 import json
 import math
 import shutil
+import hashlib
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import pandas as pd
 from docx import Document
 from docx.enum.section import WD_SECTION
 from docx.enum.table import WD_ALIGN_VERTICAL
-from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_TAB_ALIGNMENT, WD_TAB_LEADER
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Inches, Pt, RGBColor
 from docx.text.paragraph import Paragraph
 
 ROOT = Path(__file__).resolve().parents[1]
-REFERENCE = ROOT.parent / "notes" / "Khung_bao_cao.docx"
+REFERENCE = ROOT / "reports" / "template.docx"
+if not REFERENCE.exists():
+    REFERENCE = ROOT.parent / "notes" / "Khung_bao_cao.docx"
 OUTPUT = ROOT / "reports" / "BaoCao_NOP.docx"
 TABLES = ROOT / "outputs" / "tables"
 FIGURES = ROOT / "outputs" / "figures"
 
-BLUE = "1F4E78"
-HEADER_FILL = "D9E2F3"
-LIGHT_FILL = "EEF3F8"
+BLUE = "000000"
+HEADER_FILL = "FFFFFF"
+LIGHT_FILL = "FFFFFF"
 WHITE = "FFFFFF"
 USABLE_DXA = 8_856
+
+
+def math_text(text: str):
+    run = OxmlElement("m:r")
+    value = OxmlElement("m:t")
+    value.text = text
+    run.append(value)
+    return run
+
+
+def math_fraction(numerator, denominator):
+    fraction = OxmlElement("m:f")
+    for tag, parts in [("m:num", numerator), ("m:den", denominator)]:
+        node = OxmlElement(tag)
+        for part in parts:
+            node.append(part)
+        fraction.append(node)
+    return fraction
+
+
+def math_script(base: str, script: str, kind: str = "sub"):
+    element = OxmlElement("m:sSub" if kind == "sub" else "m:sSup")
+    for tag, text in [("m:e", base), ("m:sub" if kind == "sub" else "m:sup", script)]:
+        part = OxmlElement(tag)
+        part.append(math_text(text))
+        element.append(part)
+    return element
+
+
+def add_equation(doc: Document, parts) -> None:
+    paragraph = doc.add_paragraph()
+    paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    paragraph.paragraph_format.space_after = Pt(8)
+    equation = OxmlElement("m:oMath")
+    for part in parts:
+        equation.append(part)
+    paragraph._p.append(equation)
+
+
+def add_sigmoid_equation(doc: Document) -> None:
+    add_equation(doc, [math_text("σ(z) = "), math_fraction([math_text("1")],
+        [math_text("1 + "), math_script("e", "−z", "sup")])])
+
+
+def add_ap_equation(doc: Document) -> None:
+    summation = OxmlElement("m:nary")
+    properties = OxmlElement("m:naryPr")
+    char = OxmlElement("m:chr"); char.set(qn("m:val"), "∑")
+    properties.append(char)
+    summation.append(properties)
+    low = OxmlElement("m:sub"); low.append(math_text("n")); summation.append(low)
+    high = OxmlElement("m:sup"); summation.append(high)
+    term = OxmlElement("m:e")
+    for part in [math_text("("), math_script("R", "n"), math_text(" − "), math_script("R", "n−1"),
+                 math_text(")"), math_script("P", "n")]:
+        term.append(part)
+    summation.append(term)
+    add_equation(doc, [math_text("AP = "), summation])
 
 
 def vn_number(value: float, digits: int = 4) -> str:
@@ -47,7 +109,7 @@ def set_cell_shading(cell, fill: str) -> None:
     shading.set(qn("w:fill"), fill)
 
 
-def set_cell_margins(cell, top: int = 80, start: int = 100, bottom: int = 80, end: int = 100) -> None:
+def set_cell_margins(cell, top: int = 50, start: int = 100, bottom: int = 50, end: int = 100) -> None:
     tc = cell._tc
     tc_pr = tc.get_or_add_tcPr()
     tc_mar = tc_pr.first_child_found_in("w:tcMar")
@@ -84,6 +146,16 @@ def set_table_geometry(table, widths: list[int]) -> None:
         raise ValueError(f"Tổng độ rộng cột phải bằng {USABLE_DXA}: {widths}")
     table.autofit = False
     tbl_pr = table._tbl.tblPr
+    borders = tbl_pr.find(qn("w:tblBorders"))
+    if borders is None:
+        borders = OxmlElement("w:tblBorders")
+        tbl_pr.append(borders)
+    for side in ("top", "left", "bottom", "right", "insideH", "insideV"):
+        edge = OxmlElement("w:" + side)
+        edge.set(qn("w:val"), "single")
+        edge.set(qn("w:sz"), "6")
+        edge.set(qn("w:color"), "D9D9D9")
+        borders.append(edge)
     tbl_w = tbl_pr.find(qn("w:tblW"))
     if tbl_w is None:
         tbl_w = OxmlElement("w:tblW")
@@ -236,7 +308,15 @@ def add_table(doc: Document, headers: list[str], rows: list[list[str]], widths: 
                 for run in paragraph.runs:
                     format_run(run, size=font_size)
     set_table_geometry(table, widths)
-    doc.add_paragraph().paragraph_format.space_after = Pt(2)
+    # These compact tables should move as a unit instead of leaving a tail row.
+    for row in table.rows[:-1]:
+        for cell in row.cells:
+            for paragraph in cell.paragraphs:
+                paragraph.paragraph_format.keep_with_next = True
+    spacer = doc.add_paragraph()
+    spacer.paragraph_format.line_spacing = Pt(2)
+    spacer.paragraph_format.space_after = Pt(4)
+    spacer.add_run().font.size = Pt(2)
 
 
 def add_toc_before(section_break, doc: Document) -> None:
@@ -248,16 +328,48 @@ def add_toc_before(section_break, doc: Document) -> None:
     format_run(run, bold=True, size=16)
     section_break.addprevious(title._p)
 
-    paragraph = doc.add_paragraph()
-    fld = OxmlElement("w:fldSimple")
-    fld.set(qn("w:instr"), 'TOC \\o "1-2" \\h \\z \\u')
-    run_node = OxmlElement("w:r")
-    text_node = OxmlElement("w:t")
-    text_node.text = "Mục lục sẽ được cập nhật tự động khi mở bằng Microsoft Word."
-    run_node.append(text_node)
-    fld.append(run_node)
-    paragraph._p.append(fld)
-    section_break.addprevious(paragraph._p)
+    pages_path = OUTPUT.parent / "toc_pages.json"
+    pages = json.loads(pages_path.read_text(encoding="utf-8")) if pages_path.exists() else {}
+    headings = [p for p in doc.paragraphs if p.style.name in ("Heading 1", "Heading 2")]
+    for index, heading in enumerate(headings):
+        anchor = f"eccc_heading_{index}"
+        start = OxmlElement("w:bookmarkStart")
+        start.set(qn("w:id"), str(1000 + index)); start.set(qn("w:name"), anchor)
+        end = OxmlElement("w:bookmarkEnd"); end.set(qn("w:id"), str(1000 + index))
+        heading._p.insert(1, start); heading._p.append(end)
+        paragraph = doc.add_paragraph()
+        paragraph.paragraph_format.line_spacing = 1.0
+        paragraph.paragraph_format.space_after = Pt(4)
+        paragraph.paragraph_format.left_indent = Inches(0 if heading.style.name == "Heading 1" else .18)
+        paragraph.paragraph_format.tab_stops.add_tab_stop(Inches(6.1), WD_TAB_ALIGNMENT.RIGHT, WD_TAB_LEADER.DOTS)
+        if index == 0:
+            begin = OxmlElement("w:fldChar"); begin.set(qn("w:fldCharType"), "begin")
+            paragraph.add_run()._r.append(begin)
+            instruction = OxmlElement("w:instrText"); instruction.text = ' TOC \\o "1-2" \\h \\z \\u '
+            paragraph.add_run()._r.append(instruction)
+            separate = OxmlElement("w:fldChar"); separate.set(qn("w:fldCharType"), "separate")
+            paragraph.add_run()._r.append(separate)
+        run = paragraph.add_run(f"{heading.text}\t{pages.get(heading.text, 1)}")
+        format_run(run, size=11, bold=heading.style.name == "Heading 1", color="000000")
+        if index == len(headings) - 1:
+            finish = OxmlElement("w:fldChar"); finish.set(qn("w:fldCharType"), "end")
+            paragraph.add_run()._r.append(finish)
+        section_break.addprevious(paragraph._p)
+
+
+def set_body_page_numbers(doc: Document) -> None:
+    section = doc.sections[-1]
+    section.different_first_page_header_footer = False
+    number = section._sectPr.find(qn("w:pgNumType"))
+    if number is None:
+        number = OxmlElement("w:pgNumType"); section._sectPr.append(number)
+    number.set(qn("w:start"), "1")
+    section.footer.is_linked_to_previous = False
+    paragraph = section.footer.paragraphs[0]
+    paragraph.clear(); paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    field = OxmlElement("w:fldSimple"); field.set(qn("w:instr"), "PAGE")
+    run = OxmlElement("w:r"); text = OxmlElement("w:t"); text.text = "1"
+    run.append(text); field.append(run); paragraph._p.append(field)
 
 
 def set_update_fields(doc: Document) -> None:
@@ -309,7 +421,6 @@ def build() -> Path:
     doc = Document(OUTPUT)
     update_cover_date(doc)
     section_break = clear_submission_body(doc)
-    add_toc_before(section_break, doc)
     set_update_fields(doc)
 
     audit = pd.read_csv(TABLES / "data_audit.csv").set_index("metric")["value"]
@@ -324,6 +435,13 @@ def build() -> Path:
     modeling = json.loads((TABLES / "modeling_summary.json").read_text(encoding="utf-8"))
     evaluation = json.loads((TABLES / "evaluation_summary.json").read_text(encoding="utf-8"))
 
+    model_label = {"logistic": "Logistic Regression", "random_forest": "Random Forest"}[evaluation["selected_family"]]
+    test_log = ET.parse(ROOT / "outputs" / "tests.xml").getroot()
+    suites = list(test_log.iter("testsuite"))
+    test_count = sum(int(item.get("tests", "0")) for item in suites)
+    failures = sum(int(item.get("failures", "0")) + int(item.get("errors", "0")) for item in suites)
+    if failures or test_count == 0:
+        raise AssertionError("Unit test chưa đạt; không tạo báo cáo hoàn tất.")
     val = evaluation["validation"]
     test = evaluation["test"]
     primary = test["cost_threshold_metrics"]
@@ -360,7 +478,7 @@ def build() -> Path:
     )
 
     add_heading(doc, "3. Đối tượng, phạm vi và phương pháp nghiên cứu", 2)
-    add_body(doc, "Đối tượng nghiên cứu là các giao dịch trong bộ Credit Card Fraud Detection do MLG-ULB công bố. V1-V28 là các thành phần đã được biến đổi và ẩn danh; Time là số giây tương đối từ giao dịch đầu tiên; Amount là số tiền; Class=1 biểu thị gian lận.")
+    add_body(doc, "Đối tượng nghiên cứu là các giao dịch trong bộ Credit Card Fraud Detection do MLG-ULB công bố. V1-V28 là các thành phần đã được biến đổi và ẩn danh; Time là số giây tương đối từ giao dịch đầu tiên; Amount là số tiền; Class=1 biểu thị gian lận [1, 2].")
     add_body(doc, "Phạm vi là bài kết thúc học phần, không xây API/website và không xem kết quả là mô hình sẵn sàng triển khai trong ngân hàng. Nhóm kiểm tra hash, làm sạch, chia train/validation/test có phân tầng, EDA trên train, huấn luyện mô hình, khóa quyết định trên validation và chỉ đánh giá test một lần.")
 
     # CHƯƠNG 1
@@ -370,9 +488,11 @@ def build() -> Path:
     add_body(doc, "False Negative là fraud bị bỏ sót; False Positive là giao dịch hợp lệ bị cảnh báo. Hai loại lỗi có hậu quả khác nhau, vì vậy kết quả luôn báo cả Precision và Recall cùng số TP, FP, FN, TN.")
 
     add_heading(doc, "1.2. Cơ sở lý thuyết các mô hình và chỉ số", 2)
-    add_body(doc, "Logistic Regression học tổ hợp tuyến tính z = β₀ + Σβⱼxⱼ và ánh xạ qua sigmoid σ(z)=1/(1+e⁻ᶻ). Mô hình được đặt trong pipeline với StandardScaler để mọi split đi qua đúng cùng phép biến đổi học từ train.")
+    add_body(doc, "Logistic Regression học một tổ hợp tuyến tính của các feature rồi ánh xạ qua hàm sigmoid. StandardScaler được đặt trong Pipeline và chỉ fit trên train; validation/test dùng đúng phép biến đổi đã học [6, 8].")
+    add_sigmoid_equation(doc)
     add_body(doc, "Random Forest kết hợp nhiều cây quyết định huấn luyện trên mẫu bootstrap và tập con feature ngẫu nhiên. Score Class=1 là trung bình score của các cây. Mô hình có thể biểu diễn quan hệ phi tuyến nhưng feature importance chỉ thể hiện mức phụ thuộc của mô hình, không chứng minh quan hệ nhân quả.")
-    add_body(doc, "Average Precision được tính theo AP = Σₙ(Rₙ - Rₙ₋₁)Pₙ. AP đánh giá chất lượng xếp hạng trên toàn dải threshold và phù hợp hơn ROC-AUC khi lớp dương rất hiếm; no-skill baseline của mỗi split bằng tỷ lệ Class=1 trong chính split đó.")
+    add_body(doc, "Average Precision tổng hợp precision theo mức tăng recall trên các ngưỡng. Trong báo cáo, AP được tính bằng average_precision_score của scikit-learn; giá trị này dùng tổng có trọng số và khác diện tích PR tính bằng quy tắc hình thang. Mốc tham chiếu của bộ phân loại cho score hằng bằng tỷ lệ Class=1 của từng tập. Nhóm chọn mô hình bằng AP và báo thêm ROC-AUC, precision, recall, F1 để diễn giải kết quả [3, 4].")
+    add_ap_equation(doc)
 
     add_heading(doc, "1.3. Dữ liệu và mô hình sử dụng", 2)
     add_caption(doc, "Bảng 1.1. Nhóm biến và giới hạn diễn giải")
@@ -426,6 +546,7 @@ def build() -> Path:
     # CHƯƠNG 2
     add_heading(doc, "CHƯƠNG 2: PHƯƠNG PHÁP VÀ QUY TRÌNH XÂY DỰNG", 1, page_break=True)
     add_heading(doc, "2.1. Luồng thực hiện, nguồn và kiểm chứng dữ liệu", 2)
+    add_body(doc, "Đề tài bám theo Data Science Workflow của học phần: xác định bài toán, thu thập và làm sạch dữ liệu, EDA, xây feature, mô hình, đánh giá và diễn giải giá trị. Cách phát biểu bài toán theo ba tầng được trình bày ở Buổi 1, trang slide 26–30 [13].")
     add_body(doc, "Quy trình gồm 01_data_eda.ipynb, 02_modeling.ipynb, 03_evaluation.ipynb và Fraud_Project_Final.ipynb. Mỗi notebook ghi artifact ổn định vào outputs/tables, outputs/figures hoặc outputs/models để kết quả trong báo cáo có thể truy ngược.")
     add_caption(doc, "Bảng 2.1. Manifest dữ liệu nguồn")
     add_table(
@@ -475,11 +596,11 @@ def build() -> Path:
 
     add_heading(doc, "2.6. Chọn mô hình, threshold và test cuối", 2)
     for item in [
-        "Chọn candidate tốt nhất của từng họ bằng AP validation.",
+        "Chọn candidate Logistic/RF tốt nhất bằng AP validation; giữ Dummy stratified làm baseline đã chốt.",
         "So sánh Logistic Regression và Random Forest; nếu chênh AP dưới 0,01, chọn Logistic Regression theo tie-break đã chốt.",
-        "Trên score validation của model đã chọn, quét threshold và tối thiểu hóa ExpectedCost(t)=[20*FN(t)+1*FP(t)]/Nval; nếu hòa, ưu tiên Recall cao hơn.",
-        "Tính thêm threshold tối đa F1 để đối chiếu; trong lần chạy này hai quy tắc cho cùng threshold.",
-        "Khóa feature, model, hyperparameter và threshold trước khi mở test; test chỉ đánh giá một lần.",
+        "Trên score validation, tối thiểu hóa chi phí (20 × FN + FP) / Nval, gồm cả phương án không phát cảnh báo. Nếu hòa chi phí, ưu tiên recall cao hơn. Tỷ lệ 20:1 là giả định học thuật.",
+        f"Ngưỡng chi phí là {vn_number(val['cost_threshold']['threshold'],6)}; ngưỡng tối đa F1 là {vn_number(val['f1_threshold']['threshold'],6)}. Cả hai được chọn trên validation trước khi đọc test.",
+        "Ghi feature, model, ngưỡng và hash vào decision_lock.json trước khi đọc test. Trong mỗi lần tái lập, giữ quy tắc đã chốt và không dùng kết quả test để chọn lại mô hình.",
         "Ước lượng khoảng tin cậy 95% của AP test bằng 1.000 bootstrap sample, random_state=42.",
     ]:
         add_number(doc, item)
@@ -529,9 +650,9 @@ def build() -> Path:
     class0 = train_summary[train_summary["Class"] == 0].iloc[0]
     class1 = train_summary[train_summary["Class"] == 1].iloc[0]
     add_figure(doc, "amount_by_class.png", "Hình 3.2. Amount/LogAmount theo Class", f"Amount trung vị của Class 0 là {vn_number(float(class0['amount_median']),2)}, cao hơn Class 1 ({vn_number(float(class1['amount_median']),2)}), trong khi mean của Class 1 cao hơn do đuôi phải. LogAmount giúp nén miền giá trị; kết quả không chứng minh Amount gây ra gian lận.")
-    add_figure(doc, "time_by_class.png", "Hình 3.3. Time theo Class", f"Fraud trong train xuất hiện từ Time={int(class1['time_min']):,} tới {int(class1['time_max']):,} giây. Time chỉ là thời gian tương đối trong khoảng quan sát, không phải ngày giờ giao dịch thật.".replace(",", "."))
+    add_figure(doc, "time_by_class.png", "Hình 3.3. Time theo Class", f"Fraud trên train xuất hiện từ Time={int(class1['time_min'])} đến {int(class1['time_max'])} giây. Time tính tương đối từ giao dịch đầu tiên, không phải ngày giờ giao dịch thật.")
     top_corr = correlations.iloc[0]
-    add_figure(doc, "selected_correlations.png", "Hình 3.4. Tương quan chọn lọc trên train", f"V17 có |tương quan Pearson| lớn nhất trong bảng chọn lọc ({vn_number(float(top_corr['correlation_with_class']))}). Đây chỉ là liên hệ thống kê trên train; V1-V28 không được gán ý nghĩa nghiệp vụ.")
+    add_figure(doc, "selected_correlations.png", "Hình 3.4. Tương quan chọn lọc trên train", f"{top_corr['feature']} có |tương quan Pearson| lớn nhất trong bảng chọn lọc ({vn_number(float(top_corr['correlation_with_class']))}). Đây chỉ là liên hệ thống kê trên train; V1-V28 không được gán ý nghĩa nghiệp vụ.")
 
     add_heading(doc, "3.3. Kết quả trên validation và lựa chọn mô hình", 2)
     add_caption(doc, "Bảng 3.3. So sánh validation và metric tại threshold tối đa F1")
@@ -546,8 +667,8 @@ def build() -> Path:
         [1_750, 950, 1_050, 1_200, 1_150, 950, 900, 906],
         font_size=8.5,
     )
-    add_body(doc, f"Random Forest đạt AP validation {vn_number(float(rf_val.ap))}, cao hơn Logistic Regression {vn_number(float(log_val.ap))} một khoảng {vn_number(abs(float(rf_val.ap)-float(log_val.ap)))}. Chênh lệch vượt 0,01 nên nhóm chọn Random Forest theo AP, không cần kích hoạt tie-break. Baseline validation chỉ {vn_number(val['baseline_ap'],6)}.")
-    add_figure(doc, "validation_pr_curve.png", "Hình 3.5. Precision-Recall trên validation", "Đường PR cho thấy Random Forest duy trì Precision cao hơn trong phần lớn miền Recall có ý nghĩa, phù hợp với AP validation cao nhất.")
+    add_body(doc, f"AP validation của Logistic Regression là {vn_number(float(log_val.ap))}; Random Forest là {vn_number(float(rf_val.ap))}. {evaluation['selection_reason']} Cấu hình chọn là {evaluation['selected_candidate']}. Mốc tham chiếu validation bằng {vn_number(val['baseline_ap'],6)}.")
+    add_figure(doc, "validation_pr_curve.png", "Hình 3.5. Precision Recall trên validation", "Đường PR cho biết precision thay đổi theo recall khi đổi ngưỡng. AP tổng hợp đường này; các điểm vận hành cụ thể vẫn cần đối chiếu với số cảnh báo và chi phí giả định.")
 
     add_heading(doc, "3.4. Kết quả test cuối", 2, page_break=True)
     add_caption(doc, "Bảng 3.4a. Hiệu quả xếp hạng của model đã khóa trên test")
@@ -555,7 +676,7 @@ def build() -> Path:
         doc,
         ["Model", "AP (95% CI)", "ROC-AUC", "Baseline", "AP/Baseline"],
         [[
-            "Random Forest",
+            model_label,
             f"{vn_number(test['average_precision'])} ({vn_number(test['ap_bootstrap_95_ci'][0])}-{vn_number(test['ap_bootstrap_95_ci'][1])})",
             vn_number(test["roc_auc"]),
             vn_number(test["baseline_ap"],6),
@@ -581,7 +702,7 @@ def build() -> Path:
         [1_656, 1_200, 1_100, 1_000, 950, 950, 950, 1_050],
         font_size=9,
     )
-    add_body(doc, f"Trên test đã khóa, AP={vn_number(test['average_precision'])}, cao gấp {vn_number(test['ap_over_baseline'],1)} lần no-skill baseline. Khoảng tin cậy bootstrap 95% là [{vn_number(test['ap_bootstrap_95_ci'][0])}; {vn_number(test['ap_bootstrap_95_ci'][1])}]. Tại threshold {vn_number(primary['threshold'],6)}, mô hình phát hiện {primary['tp']}/95 fraud và tạo {primary['fp']} cảnh báo nhầm.")
+    add_body(doc, f"Trên test đã khóa, AP={vn_number(test['average_precision'])}, cao gấp {vn_number(test['ap_over_baseline'],1)} lần no-skill baseline. Khoảng tin cậy bootstrap 95% là [{vn_number(test['ap_bootstrap_95_ci'][0])}; {vn_number(test['ap_bootstrap_95_ci'][1])}]. Tại threshold {vn_number(primary['threshold'],6)}, mô hình phát hiện {primary['tp']}/{test['fraud']} fraud và tạo {primary['fp']} cảnh báo nhầm.")
     add_figure(doc, "test_pr_curve.png", "Hình 3.6. Precision-Recall trên test đã khóa", "AP được tính trực tiếp từ score liên tục bằng average_precision_score; test không được dùng để đổi model hoặc threshold.")
     add_figure(doc, "test_confusion_matrix.png", "Hình 3.7. Confusion matrix tại threshold đã khóa", f"Mô hình có TP={primary['tp']}, FP={primary['fp']}, FN={primary['fn']}, TN={primary['tn']}. Precision cao nhưng vẫn bỏ sót {primary['fn']} fraud, cho thấy threshold luôn là một đánh đổi vận hành.")
 
@@ -599,7 +720,8 @@ def build() -> Path:
         ])
     add_caption(doc, "Bảng 3.5. Hiệu quả theo năng lực kiểm tra")
     add_table(doc, ["Top-p", "k", "TP", "FP", "Precision@k", "Recall@k", "Lift@k"], top_rows, [1_050, 1_050, 800, 900, 1_700, 1_700, 1_656], font_size=9)
-    add_body(doc, f"Top-0,5% kiểm tra 284 giao dịch và thu hồi 76/95 fraud ({percent(float(top_p.iloc[0]['recall_at_k']),2)}), Lift={vn_number(float(top_p.iloc[0]['lift_at_k']),2)}x. Tăng lên Top-2% chỉ thu thêm 5 fraud nhưng tạo thêm 846 FP so với Top-0,5%; lựa chọn p vì vậy phụ thuộc năng lực xử lý cảnh báo.")
+    first, last = top_p.iloc[0], top_p.iloc[-1]
+    add_body(doc, f"Top-{vn_number(float(first['top_p_percent']),1)}% cần kiểm tra {int(first['k'])} giao dịch và tìm {int(first['tp'])}/{test['fraud']} fraud ({percent(float(first['recall_at_k']),2)}). Khi tăng lên Top-{vn_number(float(last['top_p_percent']),1)}%, danh sách thêm {int(last['k']-first['k'])} giao dịch, phát hiện thêm {int(last['tp']-first['tp'])} fraud và thêm {int(last['fp']-first['fp'])} cảnh báo nhầm. Việc chọn p phụ thuộc năng lực kiểm tra và chi phí của hai loại lỗi.")
     add_figure(doc, "top_p_performance.png", "Hình 3.8. Recall và Lift theo Top-p", "Recall tăng chậm khi mở rộng p, trong khi Lift giảm mạnh vì danh sách chứa nhiều giao dịch hợp lệ hơn.")
 
     add_heading(doc, "3.6. Phân tích False Positive, False Negative và feature importance", 2)
@@ -611,26 +733,28 @@ def build() -> Path:
         ["Nhóm lỗi", "Số mẫu", "Dấu hiệu số học trong mẫu", "Giới hạn kết luận"],
         [
             ["False Positive", str(len(fp)), f"Score {vn_number(fp['score'].min(),3)}-{vn_number(fp['score'].max(),3)}; Amount {vn_number(fp['Amount'].min(),2)}-{vn_number(fp['Amount'].max(),2)}", "Không biết ngữ cảnh giao dịch/khách hàng"],
-            ["False Negative", str(len(fn)), f"10 FN score thấp nhất đều bằng {vn_number(fn['score'].max(),1)}; Amount {vn_number(fn['Amount'].min(),2)}-{vn_number(fn['Amount'].max(),2)}", "Không suy ra nguyên nhân gian lận"],
+            ["False Negative", str(len(fn)), f"Score {vn_number(fn['score'].min(),3)}–{vn_number(fn['score'].max(),3)}; Amount {vn_number(fn['Amount'].min(),2)}–{vn_number(fn['Amount'].max(),2)}", "Thiếu ngữ cảnh để giải thích nguyên nhân"],
         ],
         [1_500, 1_000, 3_700, 2_656],
         font_size=9.5,
     )
     top3 = importance.head(3)
-    add_body(doc, f"Random Forest phụ thuộc nhiều nhất vào {top3.iloc[0]['feature']} ({vn_number(top3.iloc[0]['importance'])}), {top3.iloc[1]['feature']} ({vn_number(top3.iloc[1]['importance'])}) và {top3.iloc[2]['feature']} ({vn_number(top3.iloc[2]['importance'])}). Các giá trị này không cho phép gán ý nghĩa nghiệp vụ hoặc kết luận nhân quả.")
-    add_figure(doc, "feature_importance.png", "Hình 3.9. Feature importance của Random Forest", "Thứ hạng importance nhất quán với các biến có tương quan train nổi bật, nhưng được diễn giải như mức mô hình sử dụng biến, không phải nguyên nhân fraud.")
+    add_body(doc, f"{model_label} có importance lớn nhất ở {top3.iloc[0]['feature']} ({vn_number(top3.iloc[0]['importance'])}), {top3.iloc[1]['feature']} ({vn_number(top3.iloc[1]['importance'])}) và {top3.iloc[2]['feature']} ({vn_number(top3.iloc[2]['importance'])}). Các giá trị này không cho phép gán ý nghĩa nghiệp vụ hoặc kết luận nhân quả.")
+    add_figure(doc, "feature_importance.png", f"Hình 3.9. Feature importance của {model_label}", "Với Random Forest, importance dựa trên giảm độ hỗn tạp; với Logistic, báo trị tuyệt đối hệ số đã chuẩn hóa. Các số này mô tả mô hình trong thí nghiệm, không xác định nguyên nhân gian lận.")
 
     add_heading(doc, "3.7. Thảo luận kết quả và giới hạn", 2)
-    add_body(doc, f"Mô hình tốt hơn rõ rệt so với no-skill baseline: AP test {vn_number(test['average_precision'])} so với {vn_number(test['baseline_ap'],6)}. Ở threshold chi phí, Precision {percent(primary['precision'],2)} và Recall {percent(primary['recall'],2)} tạo một danh sách cảnh báo nhỏ (83 giao dịch) nhưng bỏ sót 22 fraud. Top-0,5% thu hồi thêm ba fraud so với threshold nhưng cần kiểm tra 284 giao dịch.")
+    add_body(doc, f"AP test đạt {vn_number(test['average_precision'])}, so với mốc tham chiếu {vn_number(test['baseline_ap'],6)}. Ngưỡng chi phí tạo {primary['tp']+primary['fp']} cảnh báo, phát hiện {primary['tp']} fraud và bỏ sót {primary['fn']} fraud. Top-0,5% dùng {int(first['k'])} lượt kiểm tra và phát hiện {int(first['tp'])} fraud. Đây là hai cách sử dụng score với khối lượng kiểm tra khác nhau.")
     add_body(doc, "Kết quả cho thấy score có ích để ưu tiên giao dịch trong bộ dữ liệu này, nhưng không chứng minh khả năng triển khai thực tế. Dữ liệu chỉ khoảng hai ngày, biến chính đã ẩn danh, không có quan hệ theo khách hàng/thẻ, chưa đánh giá drift và chi phí FN/FP chỉ là giả định học thuật.")
 
     # KẾT LUẬN
     add_heading(doc, "PHẦN KẾT LUẬN", 1, page_break=True)
     add_body(doc, "Đề tài đã hoàn thiện quy trình từ kiểm chứng nguồn, làm sạch, chia dữ liệu, EDA, xây feature, huấn luyện, lựa chọn validation đến đánh giá test và Top-p. Các bước fit không sử dụng validation/test ngoài vai trò đã định; mọi số trong báo cáo truy được về output của cùng lần chạy cuối.")
-    add_body(doc, f"Nhóm chọn Random Forest vì AP validation {vn_number(float(rf_val.ap))} cao hơn Logistic Regression {vn_number(float(log_val.ap))}. Trên test, Random Forest đạt AP={vn_number(test['average_precision'])}, ROC-AUC={vn_number(test['roc_auc'])}; tại threshold {vn_number(primary['threshold'],6)}, Precision={percent(primary['precision'],2)}, Recall={percent(primary['recall'],2)} và F1={vn_number(primary['f1'])}.")
+    add_body(doc, f"Nhóm chọn {model_label} cấu hình {evaluation['selected_candidate']} theo quy tắc AP validation đã chốt. Trên test, AP={vn_number(test['average_precision'])}, ROC-AUC={vn_number(test['roc_auc'])}; ở ngưỡng {vn_number(primary['threshold'],6)}, precision={percent(primary['precision'],2)}, recall={percent(primary['recall'],2)} và F1={vn_number(primary['f1'])}.")
     top1 = top_p.iloc[1]
-    add_body(doc, f"Với năng lực kiểm tra Top-1%, mô hình đưa 568 giao dịch lên đầu và tìm được {int(top1['tp'])}/95 fraud, Recall@Top-1%={percent(float(top1['recall_at_k']),2)}, Lift={vn_number(float(top1['lift_at_k']),2)}x. Đầu ra phù hợp để hỗ trợ xếp hạng ưu tiên, không tự động khóa thẻ.")
+    add_body(doc, f"Với năng lực kiểm tra Top-1%, mô hình đưa {int(top1['k'])} giao dịch lên đầu và tìm được {int(top1['tp'])}/{test['fraud']} fraud, Recall@Top-1%={percent(float(top1['recall_at_k']),2)}, Lift={vn_number(float(top1['lift_at_k']),2)}x. Đầu ra phù hợp để hỗ trợ xếp hạng ưu tiên, không tự động khóa thẻ.")
     add_body(doc, "Giá trị chính của đề tài là quy trình tái lập được, metric phù hợp với lớp hiếm và cách liên hệ kết quả với năng lực kiểm tra. Bước tiếp theo nên dùng dữ liệu theo thời gian dài hơn, thêm ngữ cảnh khách hàng/giao dịch, đánh giá drift và hiệu chỉnh chi phí cùng chuyên gia nghiệp vụ.")
+
+    add_body(doc, "Phép chia ngẫu nhiên có phân tầng không mô phỏng việc học từ quá khứ rồi dự báo tương lai. Do dữ liệu chỉ khoảng hai ngày và không có mã khách hàng, nhóm chưa đánh giá tổng quát hóa theo thời gian hoặc theo thẻ. Khoảng bootstrap phản ánh biến động khi lấy lại mẫu test với model cố định; không bao gồm sai số do huấn luyện lại hay drift.")
 
     # PHỤ LỤC A
     appendix_a_heading = add_heading(doc, "PHỤ LỤC A: TỔ CHỨC REPOSITORY VÀ NOTEBOOK", 1, page_break=True)
@@ -676,7 +800,7 @@ def build() -> Path:
         ],
         [2_100, 5_156, 1_600],
     )
-    add_body(doc, "Bộ bàn giao đã qua 8 unit test và verifier toàn dự án: đúng hash/split, không giao nhau, feature không chứa cột cấm, score đúng miền, model/threshold khóa trước test, Top-p dùng đúng k và bốn notebook có bản executed.", first_line=False)
+    add_body(doc, f"Bộ bàn giao đã qua {test_count} unit test và bước đối chiếu số liệu: hash/split, feature, miền score, ngưỡng đã khóa, AP/ROC-AUC, confusion matrix và Top-p. Bốn notebook được thực thi tuần tự trong kernel mới. Bảng và hình trong báo cáo lấy từ cùng lần chạy ghi trong outputs/run_manifest.json.", first_line=False)
 
     # TÀI LIỆU THAM KHẢO
     add_heading(doc, "TÀI LIỆU THAM KHẢO", 1, page_break=True)
@@ -693,6 +817,7 @@ def build() -> Path:
         "[10] Fraud Detection Handbook. https://fraud-detection-handbook.github.io/fraud-detection-handbook/Foreword.html",
         "[11] GitHub Docs, About large files on GitHub. https://docs.github.com/en/repositories/working-with-files/managing-large-files/about-large-files-on-github",
         "[12] GitHub Docs, Ignoring files. https://docs.github.com/en/get-started/git-basics/ignoring-files",
+        "[13] Nguyễn Mạnh Hùng, Python for Data Science, Buổi 1, ngày 17/08/2026, slide 26–30. Tài liệu học phần Cơ sở Khoa học Dữ liệu.",
     ]
     for reference in references:
         paragraph = add_body(doc, reference, first_line=False)
@@ -701,13 +826,34 @@ def build() -> Path:
         paragraph.paragraph_format.first_line_indent = Inches(-0.25)
         paragraph.paragraph_format.line_spacing = 1.0
 
+    add_toc_before(section_break, doc)
+    set_body_page_numbers(doc)
+    # Normalize template text as well as newly written report text.
+    for color in doc._element.iter(qn("w:color")):
+        color.set(qn("w:val"), "000000")
+        for attr in ("themeColor", "themeTint", "themeShade"):
+            color.attrib.pop(qn("w:" + attr), None)
     # Ensure styles remain explicit and fields refresh in Word.
+    for name in ["Title", "Subtitle", "Heading 1", "Heading 2", "Heading 3", "Caption"]:
+        doc.styles[name].font.color.rgb = RGBColor(0, 0, 0)
+    for section in doc.sections:
+        for container in (section.header, section.footer):
+            for paragraph in container.paragraphs:
+                for run in paragraph.runs:
+                    run.font.color.rgb = RGBColor(0, 0, 0)
     for paragraph in doc.paragraphs:
         for run in paragraph.runs:
             if run.text:
                 format_run(run)
     set_update_fields(doc)
     doc.save(OUTPUT)
+    provenance = {
+        "evaluation_sha256": hashlib.sha256((TABLES / "evaluation_summary.json").read_bytes()).hexdigest(),
+        "report_sha256": hashlib.sha256(OUTPUT.read_bytes()).hexdigest(),
+        "selected_family": evaluation["selected_family"], "test_metrics": test,
+        "top_p": evaluation["top_p"], "passed_unit_tests": test_count,
+    }
+    (OUTPUT.parent / "report_provenance.json").write_text(json.dumps(provenance, ensure_ascii=False, indent=2), encoding="utf-8")
     return OUTPUT
 
 

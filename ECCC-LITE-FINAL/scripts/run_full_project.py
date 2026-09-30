@@ -64,6 +64,7 @@ def main() -> None:
     run([sys.executable, "scripts/verify_project.py"])
     if not args.skip_report:
         run([sys.executable, "scripts/build_report.py"])
+        run([sys.executable, "scripts/verify_report.py"])
     files = {}
     for pattern in ("src/*.py", "scripts/*.py", "config/*.json", "notebooks/*.ipynb",
                     "outputs/tables/*", "outputs/figures/*.png", "outputs/notebooks/*.ipynb"):

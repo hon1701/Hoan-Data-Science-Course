@@ -1,86 +1,69 @@
-# ECCC-LITE - Phân tích và xếp hạng nguy cơ gian lận thẻ
+# ECCC-LITE — Xếp hạng nguy cơ gian lận thẻ
 
-Đây là bản dự án đầy đủ, được tách riêng khỏi `ECCC-LITE-A1`. Dự án thực hiện
-audit dữ liệu, EDA, huấn luyện mô hình, lựa chọn trên validation, đánh giá test
-một lần, Top-p, phân tích lỗi và báo cáo có thể truy vết.
+Dự án môn Cơ sở Khoa học Dữ liệu: kiểm chứng dữ liệu, EDA, huấn luyện và so sánh mô hình, khóa lựa chọn trên validation, đánh giá test, xếp hạng Top-p và lập báo cáo có thể truy vết.
 
-## Quy tắc khoa học đã khóa
+## Kết quả đã xác minh
 
-- Nguồn chuẩn: `creditcard.csv`, 150.828.752 byte, SHA-256
-  `76274b691b16a6c49d3f159c883398e03ccd6d1ee12d9d8ee38f4b4b98551a89`.
-- Loại 1.081 exact duplicates trước khi chia.
-- Train/validation/test = 60/20/20, `stratify=Class`, `random_state=42`.
-- EDA và mọi bước fit chỉ học từ train.
-- Feature modeling: `Time`, `V1`-`V28`, `LogAmount`; loại `Amount`, `Class`,
-  `source_row`.
-- Chọn cấu hình và model bằng Average Precision trên validation.
-- Nếu AP Logistic Regression và Random Forest chênh dưới 0,01, chọn Logistic
-  Regression theo tie-break đã chốt.
-- Threshold chính tối thiểu hóa chi phí học thuật `20 x FN + 1 x FP` trên
-  validation. Threshold tối đa F1 được báo cáo để đối chiếu.
-- Test chỉ được mở sau khi model và threshold đã khóa.
-- Top-p dùng 0,5%, 1% và 2%; nếu score bằng nhau, `source_row` tăng dần là
-  tie-break.
+- GitHub Actions run [36587391681](https://github.com/hon1701/Hoan-Data-Science-Course/actions/runs/36587391681): dữ liệu thật qua kiểm tra SHA-256, 10 test đạt, cả bốn notebook chạy hết trong kernel mới và bước đối chiếu metric thành công.
+- Chọn Random Forest `standard` theo AP validation **0,8782** (Logistic Regression: **0,7983**). Threshold chi phí được khóa trên validation ở **0,222083**, với giả định học thuật FN:FP = 20:1.
+- Trên test (56.746 giao dịch, 95 fraud): AP **0,7922**, ROC-AUC **0,9324**, Precision **0,8795**, Recall **0,7684**, F1 **0,8202**; phát hiện 73/95 fraud, có 10 cảnh báo nhầm.
+- Top 1% (568 giao dịch điểm cao nhất) thu hồi **79/95 fraud** (Recall **83,16%**). Bảng Top 0,5%/1%/2% và khoảng tin cậy AP bootstrap nằm trong báo cáo và bảng kết quả.
+- Báo cáo Word khớp `evaluation_summary.json`; bản PDF 21 trang đã render và rà bố cục từng trang. Run CI trên đã chạy với `--skip-report`; báo cáo được tạo sau đó từ chính các bảng kết quả CI và được kiểm tra hash riêng.
 
-## Cấu trúc
+## Quy tắc thực nghiệm đã khóa
+
+- Nguồn `creditcard.csv`, 150.828.752 byte, SHA-256 `76274b691b16a6c49d3f159c883398e03ccd6d1ee12d9d8ee38f4b4b98551a89`.
+- Loại 1.081 dòng trùng chính xác; chia train/validation/test 60/20/20 có phân tầng theo `Class`, seed 42.
+- EDA và các bước fit chỉ dùng train. Feature mô hình gồm `Time`, `V1`–`V28`, `LogAmount`; không dùng `Amount`, `Class` hay `source_row` làm feature.
+- So sánh Dummy, Logistic Regression và Random Forest bằng Average Precision trên validation; nếu Logistic và Random Forest chênh dưới 0,01 thì ưu tiên Logistic Regression.
+- Threshold chi phí tối thiểu hóa `20 × FN + FP` trên validation. Test chỉ được đánh giá sau khi model và threshold đã được khóa.
+- Top-p lấy `ceil(p × N)` dòng; score bằng nhau được phân xử theo `source_row` tăng dần.
+
+## Cấu trúc chính
 
 ```text
 ECCC-LITE-FINAL/
-├── data/raw/creditcard.csv
-├── data/processed/{train,validation,test}.csv
-├── notebooks/
-│   ├── 01_data_eda.ipynb
-│   ├── 02_modeling.ipynb
-│   ├── 03_evaluation.ipynb
-│   └── Fraud_Project_Final.ipynb
-├── src/{a1_utils,modeling,evaluation}.py
-├── scripts/
-├── outputs/{tables,figures,models,notebooks}/
-├── reports/BaoCao_NOP.docx
-└── tests/
+├── notebooks/                  # 4 notebook nguồn
+├── src/                         # tiện ích dữ liệu, modeling, evaluation
+├── scripts/                     # chạy pipeline, tạo báo cáo, verifier
+├── tests/                       # regression/unit tests
+├── outputs/                     # sinh ra khi chạy, không commit dữ liệu lớn
+└── reports/                     # DOCX, PDF và template
 ```
 
-## Cách chạy
+## Chạy lại trên Windows PowerShell
 
 ```powershell
-conda activate ds_course
-cd "DUONG_DAN_DEN_ECCC-LITE-FINAL"
+# Tạo môi trường một lần, từ thư mục dự án:
+conda env create -f environment.yml
+conda activate eccc-lite
+
 python -m pip install -r requirements.txt
-.\run_project.ps1
-```
-
-Hoặc:
-
-```powershell
-$env:PYTHONUTF8 = "1"
 python -X utf8 scripts/run_full_project.py
 ```
 
-Kiểm tra nhanh:
+Hoặc chạy `\.\run_project.ps1`. Pipeline tải/kiểm chứng dữ liệu khi chưa có bản hash hợp lệ, chạy test, thực thi bốn notebook theo thứ tự đã nêu, đối chiếu metric rồi tạo và kiểm tra báo cáo Word. Có thể mở notebook đã chạy trong `outputs/notebooks/`.
+
+Các lệnh kiểm tra riêng:
 
 ```powershell
 python -m pytest -q
 python -X utf8 scripts/verify_project.py
+python -X utf8 scripts/verify_report.py
 ```
 
-## Artifact chính
+`outputs/requirements-lock.txt` ghi phiên bản của lần chạy CI đã xác minh. Các notebook nguồn ở `notebooks/`; notebook có output được tải riêng cùng bằng chứng kết quả. Raw CSV, split CSV và model được loại khỏi Git.
 
-- `outputs/tables/data_audit.csv`: nguồn, hash, duplicate và split.
-- `outputs/tables/validation_scores.csv`: score validation của ba họ mô hình.
-- `outputs/tables/model_candidates.csv`: cấu hình thử có kiểm soát.
-- `outputs/tables/model_comparison.csv`: AP/ROC-AUC và metric theo threshold.
-- `outputs/tables/test_scores.csv`: score test của model đã khóa.
-- `outputs/tables/top_p_metrics.csv`: Precision/Recall/Lift tại Top-p.
-- `outputs/tables/error_examples.csv`: ví dụ FP/FN theo `source_row`.
-- `outputs/tables/evaluation_summary.json`: nguồn số liệu chính cho báo cáo.
-- `outputs/figures/*.png`: hình EDA và đánh giá.
-- `outputs/notebooks/*.executed.ipynb`: notebook đã chạy theo đúng thứ tự.
-- `reports/BaoCao_NOP.docx`: báo cáo cuối sau render QA.
+## Artifact và báo cáo
+
+- `outputs/tables/evaluation_summary.json`: kết quả chuẩn dùng dựng báo cáo.
+- `outputs/tables/decision_lock.json`: model, feature và threshold đã khóa.
+- `outputs/tables/model_candidates.csv`, `model_comparison.csv`, `top_p_metrics.csv`: so sánh và kết quả Top-p.
+- `outputs/figures/`: biểu đồ EDA và đánh giá.
+- `outputs/notebooks/*.executed.ipynb`: bốn notebook có kết quả chạy.
+- `reports/BaoCao_NOP.docx` và `reports/BaoCao_NOP.pdf`: báo cáo bàn giao.
+- `CHECKLIST_BAN_GIAO.md`: danh sách bằng chứng đã đối chiếu.
 
 ## Giới hạn
 
-Dữ liệu chỉ bao phủ khoảng hai ngày, V1-V28 đã ẩn danh và không có lịch sử
-khách hàng. Chi phí FN/FP là giả định học thuật. Score dùng để xếp hạng ưu tiên
-kiểm tra, không phải quyết định tự động khóa thẻ và chưa phải mô hình triển khai
-trong ngân hàng.
-
+Dữ liệu chỉ bao phủ khoảng hai ngày, `V1`–`V28` đã ẩn danh và thiếu lịch sử khách hàng. Tỷ lệ chi phí FN/FP là giả định học thuật. Score chỉ hỗ trợ xếp hạng để ưu tiên kiểm tra, chưa phải mô hình triển khai trong ngân hàng hay quyết định tự động khóa thẻ.
