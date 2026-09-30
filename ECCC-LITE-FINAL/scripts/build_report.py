@@ -747,9 +747,11 @@ def build() -> Path:
         [1_500, 1_000, 3_700, 2_656],
         font_size=9.5,
     )
+    add_figure(doc, "seaborn_error_cases_multivariate.png", "Hình 3.10. Seaborn đa biến trên mẫu FP/FN của test đã khóa",
+               "Mười cảnh báo nhầm và mười giao dịch bị bỏ sót được mô tả theo LogAmount, V14, loại lỗi và score. Đây là 20 trường hợp được chọn sau khi đánh giá test, không đại diện toàn bộ phân bố test và không dùng để thay đổi mô hình hoặc threshold.", width=5.5)
     top3 = importance.head(3)
     add_body(doc, f"{model_label} có importance lớn nhất ở {top3.iloc[0]['feature']} ({vn_number(top3.iloc[0]['importance'])}), {top3.iloc[1]['feature']} ({vn_number(top3.iloc[1]['importance'])}) và {top3.iloc[2]['feature']} ({vn_number(top3.iloc[2]['importance'])}). Các giá trị này không cho phép gán ý nghĩa nghiệp vụ hoặc kết luận nhân quả.")
-    add_figure(doc, "feature_importance.png", f"Hình 3.10. Feature importance của {model_label}", "Với Random Forest, importance dựa trên giảm độ hỗn tạp; với Logistic, báo trị tuyệt đối hệ số đã chuẩn hóa. Các số này mô tả mô hình trong thí nghiệm, không xác định nguyên nhân gian lận.")
+    add_figure(doc, "feature_importance.png", f"Hình 3.11. Feature importance của {model_label}", "Với Random Forest, importance dựa trên giảm độ hỗn tạp; với Logistic, báo trị tuyệt đối hệ số đã chuẩn hóa. Các số này mô tả mô hình trong thí nghiệm, không xác định nguyên nhân gian lận.")
 
     add_heading(doc, "3.7. Thảo luận kết quả và giới hạn", 2)
     add_body(doc, f"AP test đạt {vn_number(test['average_precision'])}, so với mốc tham chiếu {vn_number(test['baseline_ap'],6)}. Ngưỡng chi phí tạo {primary['tp']+primary['fp']} cảnh báo, phát hiện {primary['tp']} fraud và bỏ sót {primary['fn']} fraud. Top-0,5% dùng {int(first['k'])} lượt kiểm tra và phát hiện {int(first['tp'])} fraud. Đây là hai cách sử dụng score với khối lượng kiểm tra khác nhau.")
@@ -860,6 +862,9 @@ def build() -> Path:
     provenance = {
         "evaluation_sha256": hashlib.sha256((TABLES / "evaluation_summary.json").read_bytes()).hexdigest(),
         "report_sha256": hashlib.sha256(OUTPUT.read_bytes()).hexdigest(),
+        "eda_pivot_sha256": hashlib.sha256((TABLES / "train_time_class_pivot.csv").read_bytes()).hexdigest(),
+        "eda_seaborn_sha256": hashlib.sha256((FIGURES / "eda_seaborn_multivariate.png").read_bytes()).hexdigest(),
+        "error_seaborn_sha256": hashlib.sha256((FIGURES / "seaborn_error_cases_multivariate.png").read_bytes()).hexdigest(),
         "selected_family": evaluation["selected_family"], "test_metrics": test,
         "top_p": evaluation["top_p"], "passed_unit_tests": test_count,
     }

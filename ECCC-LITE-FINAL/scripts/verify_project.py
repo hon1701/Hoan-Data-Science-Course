@@ -29,6 +29,7 @@ EXPECTED_FIGURES = [
     "test_pr_curve.png",
     "test_confusion_matrix.png",
     "top_p_performance.png",
+    "seaborn_error_cases_multivariate.png",
     "feature_importance.png",
 ]
 EXPECTED_TABLES = [
@@ -97,7 +98,7 @@ def verify_saved_metrics(root: Path) -> None:
             # nbformat permits either a string or a list of lines for source.
             content = lambda nb: [(c["cell_type"], "".join(c["source"])) for c in nb["cells"]]
             assert content(source) == content(notebook), path
-        expected_images = {"01_data_eda": 5, "02_modeling": 0, "03_evaluation": 5, "Fraud_Project_Final": 10}[filename]
+        expected_images = {"01_data_eda": 5, "02_modeling": 0, "03_evaluation": 6, "Fraud_Project_Final": 11}[filename]
         image_count = sum("image/png" in o.get("data", {}) for c in notebook["cells"] for o in c.get("outputs", []))
         assert image_count >= expected_images, f"Thiếu hình nhúng: {path}"
 

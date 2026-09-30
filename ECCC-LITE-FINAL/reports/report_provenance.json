@@ -1,6 +1,9 @@
 {
   "evaluation_sha256": "2ad0f316894c0af04a197f765f237c4675dc0d643c607f29aea1fc3f5ab0b1e4",
-  "report_sha256": "11cfc7bb4972fbe64a7f933a674cb53c7d827a4eb7e005d4b6255c705e808892",
+  "report_sha256": "0b2112a936b47a7c7fcffa72ab49029c3e40a7c54dbe064d060c6891e72c6a21",
+  "eda_pivot_sha256": "990f435e86124551d0e1b70a7b37ebec170c75de7f73af709ce6dfcb9cc26d2a",
+  "eda_seaborn_sha256": "e4c50e902c0185ebbf75dd5443b174995e18f20b4dd38ac9a173eb713c17c222",
+  "error_seaborn_sha256": "7291786d41eff5eac2c5d9a8b975d09fd7245fa5ed3e33be6527725bf9c72201",
   "selected_family": "random_forest",
   "test_metrics": {
     "rows": 56746,

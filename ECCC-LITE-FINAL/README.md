@@ -73,7 +73,7 @@ python -X utf8 scripts/verify_report.py
 - `outputs/tables/decision_lock.json`: model, feature và threshold đã khóa.
 - `outputs/tables/model_candidates.csv`, `model_comparison.csv`, `top_p_metrics.csv`: so sánh và kết quả Top-p.
 - `outputs/tables/train_time_class_pivot.csv`: pivot Time × Class từ train và tỷ lệ fraud theo cửa sổ.
-- `outputs/figures/`: năm biểu đồ EDA (gồm `eda_seaborn_multivariate.png`) và biểu đồ đánh giá.
+- `outputs/figures/`: năm biểu đồ EDA trên train, các hình đánh giá và `seaborn_error_cases_multivariate.png` mô tả lỗi test sau khi khóa quyết định.
 - `outputs/notebooks/*.executed.ipynb`: bốn notebook có kết quả chạy.
 - `reports/BaoCao_NOP.docx` và `reports/BaoCao_NOP.pdf`: báo cáo bàn giao.
 - `CHECKLIST_BAN_GIAO.md`: danh sách bằng chứng đã đối chiếu.

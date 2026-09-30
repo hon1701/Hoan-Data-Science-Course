@@ -106,12 +106,13 @@ def main() -> None:
             ),
             nbf.v4.new_code_cell(
                 "for name in ['validation_pr_curve.png', 'test_pr_curve.png', 'test_confusion_matrix.png', "
-                "'top_p_performance.png', 'feature_importance.png']:\n"
+                "'top_p_performance.png', 'seaborn_error_cases_multivariate.png', 'feature_importance.png']:\n"
                 "    display(Image(filename=str(PROJECT_ROOT / 'outputs/figures' / name)))"
             ),
             nbf.v4.new_markdown_cell(
-                "Kết quả FP/FN chỉ mô tả mẫu số học của biến đã ẩn danh; không suy ra nguyên nhân gian lận hay "
-                "hành vi khách hàng."
+                "Hình Seaborn FP/FN mô tả 10 cảnh báo nhầm và 10 mẫu bỏ sót được chọn sau khi khóa "
+                "threshold. Nó cho thấy LogAmount, V14 và score ở các lỗi được chọn; không suy ra nguyên "
+                "nhân gian lận hay hành vi khách hàng từ biến ẩn danh."
             ),
         ],
     )
@@ -152,7 +153,7 @@ def main() -> None:
             nbf.v4.new_code_cell(
                 "for name in ['class_distribution.png', 'amount_by_class.png', 'time_by_class.png', "
                 "'selected_correlations.png', 'eda_seaborn_multivariate.png', 'validation_pr_curve.png', 'test_pr_curve.png', "
-                "'test_confusion_matrix.png', 'top_p_performance.png', 'feature_importance.png']:\n"
+                "'test_confusion_matrix.png', 'top_p_performance.png', 'seaborn_error_cases_multivariate.png', 'feature_importance.png']:\n"
                 "    path = PROJECT_ROOT / 'outputs/figures' / name\n"
                 "    assert path.is_file(), path\n"
                 "    display(Image(filename=str(path)))"

@@ -11,6 +11,7 @@
 - [x] Feature mô hình loại `Amount`, `Class`, `source_row`; kiểm tra miền score và lớp dương.
 - [x] Chọn model bằng AP validation; ngưỡng chi phí/F1 chọn trên validation rồi khóa trước khi đánh giá test.
 - [x] Báo cáo kết quả test bằng AP, ROC-AUC, Precision, Recall, F1, confusion matrix, Top-0,5%/1%/2%, bootstrap AP và phân tích FP/FN.
+- [x] Hình Seaborn FP/FN trong Word được sinh từ 20 lỗi test sau khi khóa mô hình/ngưỡng bởi `src/evaluation.py`.
 - [x] Kết quả báo cáo khớp `evaluation_summary.json`; verifier kiểm tra hash, ngưỡng, các metric và Top-p.
 
 ## Báo cáo và bàn giao

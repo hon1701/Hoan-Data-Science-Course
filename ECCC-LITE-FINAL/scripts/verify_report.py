@@ -25,6 +25,12 @@ def main() -> None:
     provenance = json.loads((ROOT / "reports/report_provenance.json").read_text(encoding="utf-8"))
     assert provenance["evaluation_sha256"] == hashlib.sha256(results_path.read_bytes()).hexdigest()
     assert provenance["report_sha256"] == hashlib.sha256(report.read_bytes()).hexdigest()
+    for key, path in [
+        ("eda_pivot_sha256", ROOT / "outputs/tables/train_time_class_pivot.csv"),
+        ("eda_seaborn_sha256", ROOT / "outputs/figures/eda_seaborn_multivariate.png"),
+        ("error_seaborn_sha256", ROOT / "outputs/figures/seaborn_error_cases_multivariate.png"),
+    ]:
+        assert provenance[key] == hashlib.sha256(path.read_bytes()).hexdigest(), key
     text = document_text(Document(report))
     metrics = results["test"]
     for key in ("average_precision", "roc_auc"):
@@ -35,6 +41,8 @@ def main() -> None:
     assert f"{primary['threshold']:.6f}".replace(".", ",") in text
     for row in results["top_p"]:
         assert f"{row['recall_at_k']*100:.2f}%".replace(".", ",") in text
+    for marker in ("Bảng 3.3. Pivot Time", "Hình 3.5. Seaborn đa biến", "Hình 3.10. Seaborn đa biến"):
+        assert marker in text, marker
     for marker in ("HƯỚNG DẪN SỬ DỤNG BẢN KHUNG", "TODO", "TBD"):
         assert marker not in text, marker
     print("[OK] Báo cáo khớp hash lần chạy, AP/ROC-AUC, ngưỡng, precision/recall/F1 và Top-p.")
