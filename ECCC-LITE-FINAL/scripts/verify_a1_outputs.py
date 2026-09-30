@@ -33,6 +33,7 @@ EXPECTED_FIGURES = [
     "amount_by_class.png",
     "time_by_class.png",
     "selected_correlations.png",
+    "eda_seaborn_multivariate.png",
 ]
 
 
@@ -73,10 +74,20 @@ def verify(root: Path, *, strict: bool) -> None:
             if abs(ratios[name] - expected) > 0.01:
                 raise AssertionError(f"Tỷ lệ {name} không gần {expected:.0%}: {ratios[name]:.3%}")
 
-    for filename in ("data_audit.csv", "split_summary.csv", "train_class_summary.csv"):
+    for filename in ("data_audit.csv", "split_summary.csv", "train_class_summary.csv", "train_time_class_pivot.csv"):
         path = table_dir / filename
         if not path.is_file() or path.stat().st_size == 0:
             raise FileNotFoundError(f"Thiếu bảng đầu ra hợp lệ: {path}")
+
+    pivot = pd.read_csv(table_dir / "train_time_class_pivot.csv")
+    assert list(pivot.columns) == ["time_window", "class_0", "class_1", "fraud_rate"]
+    assert int(pivot[["class_0", "class_1"]].to_numpy().sum()) == len(splits["train"])
+    assert int(pivot["class_1"].sum()) == int(splits["train"][TARGET].sum())
+    np.testing.assert_allclose(
+        pivot["fraud_rate"],
+        pivot["class_1"] / (pivot["class_0"] + pivot["class_1"]),
+        atol=1e-12,
+    )
 
     feature_contract_path = table_dir / "feature_contract.json"
     feature_contract = json.loads(feature_contract_path.read_text(encoding="utf-8"))
@@ -91,7 +102,7 @@ def verify(root: Path, *, strict: bool) -> None:
             raise FileNotFoundError(f"Thiếu hoặc hình quá nhỏ: {path}")
 
     print("[OK] Ba split đúng schema, không giao nhau và bảo toàn số dòng.")
-    print("[OK] LogAmount, audit table, feature contract và bốn hình EDA hợp lệ.")
+    print("[OK] LogAmount, pivot trên train, feature contract và năm hình EDA hợp lệ.")
     print("[OK] Bộ đầu ra A.1 đã sẵn sàng bàn giao cho Huy/Sang.")
 
 
