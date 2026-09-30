@@ -23,5 +23,6 @@ outputs/tables/*.json
 # Trained models and report QA intermediates
 outputs/models/*.joblib
 !outputs/models/.gitkeep
+outputs/*.log
 reports/qa/
 

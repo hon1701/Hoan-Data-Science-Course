@@ -28,7 +28,7 @@ from sklearn.metrics import (
     roc_auc_score,
 )
 
-from src.a1_utils import ID_COLUMN, RANDOM_STATE, TARGET, atomic_write_csv, atomic_write_json
+from src.a1_utils import ID_COLUMN, RANDOM_STATE, TARGET, atomic_write_csv, atomic_write_json, sha256_file
 from src.modeling import (
     MODEL_FEATURE_COLUMNS,
     load_split,
@@ -89,9 +89,11 @@ def cost_curve(
     cumulative_tp = np.cumsum(sorted_y == 1)
     cumulative_fp = np.cumsum(sorted_y == 0)
     group_end = np.r_[sorted_s[1:] != sorted_s[:-1], True]
-    tp = cumulative_tp[group_end]
-    fp = cumulative_fp[group_end]
-    thresholds = sorted_s[group_end]
+    # Include the valid decision to flag no transaction at all.
+    # A cutoff strictly above the maximum score implements this with score >= t.
+    tp = np.r_[0, cumulative_tp[group_end]]
+    fp = np.r_[0, cumulative_fp[group_end]]
+    thresholds = np.r_[np.nextafter(sorted_s[0], np.inf), sorted_s[group_end]]
     positives = int(y.sum())
     fn = positives - tp
     precision = tp / np.maximum(tp + fp, 1)
@@ -133,7 +135,7 @@ def select_cost_threshold(
         false_positive_cost=false_positive_cost,
     )
     minimum = curve["expected_cost_per_transaction"].min()
-    candidates = curve[np.isclose(curve["expected_cost_per_transaction"], minimum)]
+    candidates = curve[np.isclose(curve["expected_cost_per_transaction"], minimum, rtol=0, atol=1e-12)]
     row = candidates.sort_values(["recall", "threshold"], ascending=[False, True]).iloc[0]
     result = threshold_metrics(np.asarray(y_true), np.asarray(scores), float(row["threshold"]))
     result.update(
@@ -259,7 +261,8 @@ def _plot_confusion(metrics: dict[str, Any], model_label: str, path: Path) -> No
     fig, ax = plt.subplots(figsize=(5.2, 4.4))
     image = ax.imshow(matrix, cmap="Blues")
     for (row, column), value in np.ndenumerate(matrix):
-        ax.text(column, row, f"{value:,}", ha="center", va="center", fontsize=12)
+        ax.text(column, row, f"{value:,}", ha="center", va="center", fontsize=12,
+                color="white" if value > matrix.max() / 2 else "black")
     ax.set_xticks([0, 1], labels=["Dự đoán 0", "Dự đoán 1"])
     ax.set_yticks([0, 1], labels=["Thực tế 0", "Thực tế 1"])
     ax.set_title(f"Confusion matrix - {model_label}\nthreshold={metrics['threshold']:.6f}")
@@ -317,7 +320,7 @@ def evaluate_project(
     figures = root / "outputs" / "figures"
     models = root / "outputs" / "models"
     modeling_summary = json.loads((tables / "modeling_summary.json").read_text(encoding="utf-8"))
-    validation_scores = pd.read_csv(tables / "validation_scores.csv")
+    validation_scores = pd.read_csv(tables / "validation_scores.csv", float_precision="round_trip")
     expected_score_columns = {
         ID_COLUMN,
         "y_true",
@@ -340,6 +343,21 @@ def evaluate_project(
     cost_threshold, curve = select_cost_threshold(y_validation, selected_validation_scores)
     atomic_write_csv(curve, tables / "threshold_search.csv")
 
+    # Persist the actual decisions and source hashes before reading test data.
+    decision_lock = {
+        "created_utc": datetime.now(timezone.utc).isoformat(),
+        "selected_family": selected_family,
+        "selected_candidate": modeling_summary["selected_candidate"],
+        "feature_columns": MODEL_FEATURE_COLUMNS,
+        "random_state": random_state,
+        "cost_threshold": cost_threshold["threshold"],
+        "f1_threshold": f1_threshold["threshold"],
+        "model_sha256": sha256_file(models / "selected_model.joblib"),
+        "validation_scores_sha256": sha256_file(tables / "validation_scores.csv"),
+        "modeling_summary_sha256": sha256_file(tables / "modeling_summary.json"),
+    }
+    atomic_write_json(decision_lock, tables / "decision_lock.json")
+
     test = load_split(root, "test")
     x_test, y_test_series = split_xy(test)
     y_test = y_test_series.to_numpy(dtype=int)
@@ -357,6 +375,11 @@ def evaluate_project(
     test_baseline = float(y_test.mean())
     test_cost_metrics = threshold_metrics(y_test, test_scores, cost_threshold["threshold"])
     test_f1_metrics = threshold_metrics(y_test, test_scores, f1_threshold["threshold"])
+    for metrics in (test_cost_metrics, test_f1_metrics):
+        metrics["expected_cost_per_transaction"] = (
+            cost_threshold["false_negative_cost"] * metrics["fn"]
+            + cost_threshold["false_positive_cost"] * metrics["fp"]
+        ) / len(y_test)
     ci_low, ci_high, valid_bootstraps = bootstrap_ap_interval(
         y_test,
         test_scores,
@@ -461,6 +484,7 @@ def evaluate_project(
             "unit": "relative academic cost per transaction",
         },
         "test_accessed_after_model_and_threshold_lock": True,
+        "decision_lock_sha256": sha256_file(tables / "decision_lock.json"),
         "environment": {
             "python": sys.version.split()[0],
             "platform": platform.platform(),
