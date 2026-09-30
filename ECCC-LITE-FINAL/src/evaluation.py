@@ -17,6 +17,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import seaborn as sns
 import sklearn
 from sklearn.metrics import (
     average_precision_score,
@@ -307,6 +308,20 @@ def _plot_importance(table: pd.DataFrame, selected_family: str, path: Path) -> N
     _save_figure(fig, path)
 
 
+def _plot_error_cases(examples: pd.DataFrame, path: Path) -> None:
+    """Describe selected test errors only after model and threshold are locked."""
+    fig, ax = plt.subplots(figsize=(8.6, 5.3))
+    sns.scatterplot(
+        data=examples, x="LogAmount", y="V14", hue="error_type", size="score",
+        sizes=(45, 180), alpha=0.8,
+        palette={"False Positive": "#E45756", "False Negative": "#4C78A8"}, ax=ax,
+    )
+    ax.set(title="Các trường hợp FP/FN được chọn trên test đã khóa",
+           xlabel="LogAmount = log1p(Amount)", ylabel="V14 (ẩn danh)")
+    ax.legend(title="Loại lỗi / score", bbox_to_anchor=(1.02, 1), loc="upper left")
+    _save_figure(fig, path)
+
+
 def evaluate_project(
     root: Path,
     *,
@@ -432,7 +447,7 @@ def evaluate_project(
     importance = _feature_importance(model, selected_family)
     atomic_write_csv(importance, tables / "feature_importance.csv")
     top_features = importance.head(5)["feature"].tolist()
-    error_feature_columns = list(dict.fromkeys(["Time", "Amount", "LogAmount", *top_features]))
+    error_feature_columns = list(dict.fromkeys(["Time", "Amount", "LogAmount", "V14", *top_features]))
     errors = test.loc[
         primary_labels != y_test,
         [ID_COLUMN, TARGET, *error_feature_columns],
@@ -450,6 +465,7 @@ def evaluate_project(
     _plot_test_pr(y_test, test_scores, model_label, figures / "test_pr_curve.png")
     _plot_confusion(test_cost_metrics, model_label, figures / "test_confusion_matrix.png")
     _plot_top_p(top_p, figures / "top_p_performance.png")
+    _plot_error_cases(error_examples, figures / "seaborn_error_cases_multivariate.png")
     _plot_importance(importance, selected_family, figures / "feature_importance.png")
 
     summary = {

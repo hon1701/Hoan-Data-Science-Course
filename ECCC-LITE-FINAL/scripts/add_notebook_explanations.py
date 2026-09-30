@@ -58,7 +58,10 @@ def enhance(root: Path = ROOT) -> None:
     for name, (intro, code) in notes.items():
         path = root / "notebooks" / name
         notebook = json.loads(path.read_text(encoding="utf-8"))
-        cells = [c for c in notebook["cells"] if not c.get("id", "").startswith("eccc-")]
+        # Replace only the cells this helper owns. Other authored EDA cells must survive rebuilds.
+        owned_ids = {"eccc-" + hashlib.sha256((name + suffix).encode()).hexdigest()[:8]
+                     for suffix in ("intro", "interpret", "code")}
+        cells = [c for c in notebook["cells"] if c.get("id") not in owned_ids]
         cells.insert(1, cell("markdown", intro, name + "intro"))
         if code:
             cells.extend([cell("markdown", "## Diễn giải kết quả của lần chạy\nCác con số dưới đây được tính từ output vừa tạo.", name + "interpret"),

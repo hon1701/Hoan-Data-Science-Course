@@ -3,12 +3,11 @@ on:
   workflow_dispatch:
   push:
     branches: [codex/eccc-final-20260929]
+  pull_request:
+    branches: [main]
     paths:
-      - 'ECCC-LITE-FINAL/src/**'
-      - 'ECCC-LITE-FINAL/tests/**'
-      - 'ECCC-LITE-FINAL/notebooks/**'
-      - 'ECCC-LITE-FINAL/scripts/run_full_project.py'
-      - 'ECCC-LITE-FINAL/scripts/verify_project.py'
+      - 'ECCC-LITE-FINAL/**'
+      - '.github/workflows/eccc-validation.yml'
       - '.github/workflows/eccc-validation.yml'
 permissions:
   contents: read
