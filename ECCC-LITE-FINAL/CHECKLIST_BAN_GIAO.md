@@ -4,6 +4,7 @@
 
 - [x] `creditcard.csv` tải từ nguồn công khai; kích thước và SHA-256 khớp manifest.
 - [x] Audit ghi nhận 284.807 dòng gốc, 1.081 dòng trùng bị loại, 283.726 dòng sạch và 473 fraud còn lại.
+- [x] Buổi 9, slide 77–78: `groupby`, `pivot_table` trên train, `LogAmount`, năm hình EDA gồm Seaborn đa biến và 2–3 câu nhận xét sau từng hình; kết luận nêu bốn phát hiện.
 - [x] Chia train/validation/test 60/20/20, stratify theo `Class`, seed 42; không giao nhau.
 - [x] `pytest`: 10 test đạt, gồm kiểm tra regression cho ngưỡng không cảnh báo và xử lý score trùng.
 - [x] Cả bốn notebook nguồn chạy từ đầu bằng kernel mới; thứ tự EDA → modeling → evaluation → notebook tổng hợp.
@@ -15,7 +16,7 @@
 ## Báo cáo và bàn giao
 
 - [x] Word giữ bìa mẫu, có mục lục đủ 33 mục với số trang đã đối chiếu.
-- [x] DOCX được dựng và PDF 21 trang được render; đã rà trực quan toàn bộ trang, hình, bảng, công thức và số trang.
+- [x] DOCX được dựng và PDF 22 trang được render; 33 mục lục đối chiếu đúng số trang, hình Seaborn/bảng pivot đã rà trực quan.
 - [x] Có hướng dẫn chạy lại Windows PowerShell trong `README.md`.
 - [x] Raw dataset, các split CSV và model huấn luyện không được đưa vào Git.
 - [x] Notebook có output và bảng/hình kết quả được đóng gói riêng; log, manifest và lock phiên bản đi cùng để truy vết.

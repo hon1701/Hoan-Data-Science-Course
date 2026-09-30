@@ -130,10 +130,12 @@ def main() -> None:
                 "from IPython.display import Image, display\n"
                 "import pandas as pd\n\n"
                 "audit = pd.read_csv(PROJECT_ROOT / 'outputs/tables/data_audit.csv')\n"
+                "pivot = pd.read_csv(PROJECT_ROOT / 'outputs/tables/train_time_class_pivot.csv')\n"
                 "comparison = pd.read_csv(PROJECT_ROOT / 'outputs/tables/model_comparison.csv')\n"
                 "top_p = pd.read_csv(PROJECT_ROOT / 'outputs/tables/top_p_metrics.csv')\n"
                 "evaluation = json.loads((PROJECT_ROOT / 'outputs/tables/evaluation_summary.json').read_text(encoding='utf-8'))\n"
                 "display(audit)\n"
+                "display(pivot.style.format({'fraud_rate': '{:.4%}'}))\n"
                 "display(comparison)\n"
                 "display(top_p)"
             ),
@@ -149,11 +151,16 @@ def main() -> None:
             ),
             nbf.v4.new_code_cell(
                 "for name in ['class_distribution.png', 'amount_by_class.png', 'time_by_class.png', "
-                "'selected_correlations.png', 'validation_pr_curve.png', 'test_pr_curve.png', "
+                "'selected_correlations.png', 'eda_seaborn_multivariate.png', 'validation_pr_curve.png', 'test_pr_curve.png', "
                 "'test_confusion_matrix.png', 'top_p_performance.png', 'feature_importance.png']:\n"
                 "    path = PROJECT_ROOT / 'outputs/figures' / name\n"
                 "    assert path.is_file(), path\n"
                 "    display(Image(filename=str(path)))"
+            ),
+            nbf.v4.new_markdown_cell(
+                "EDA trong `01_data_eda.ipynb` có nhận xét 2–3 câu ngay sau từng hình, gồm biểu đồ "
+                "Seaborn đa biến và bảng pivot tạo trực tiếp từ train. Các hình validation/test ở đây "
+                "chỉ tổng hợp artifact sau khi quyết định đã khóa; không dùng để chọn lại mô hình."
             ),
             nbf.v4.new_markdown_cell(
                 "**Giới hạn:** dữ liệu chỉ bao phủ khoảng hai ngày, V1-V28 đã ẩn danh, không có lịch sử khách "

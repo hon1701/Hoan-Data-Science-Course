@@ -9,6 +9,7 @@ __pycache__/
 data/raw/*.csv
 data/raw/*.part
 data/processed/*.csv
+data/processed/*.part
 !data/processed/.gitkeep
 
 # Generated notebook and analysis outputs
@@ -25,4 +26,4 @@ outputs/models/*.joblib
 !outputs/models/.gitkeep
 outputs/*.log
 reports/qa/
-
+reports/qa_*/
