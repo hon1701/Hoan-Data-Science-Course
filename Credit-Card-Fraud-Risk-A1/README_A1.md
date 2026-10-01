@@ -24,7 +24,7 @@ feature. `Class` và `source_row` bị loại khỏi feature contract.
 ## 2. Cấu trúc
 
 ```text
-ECCC-LITE-A1/
+Credit-Card-Fraud-Risk-A1/
 ├── config/a1_config.json
 ├── data/
 │   ├── raw/README.md
@@ -46,8 +46,8 @@ ECCC-LITE-A1/
 └── run_a1.ps1
 ```
 
-Khi ghép vào repository ECCC-LITE, chép các thư mục/tệp trên vào thư mục gốc
-của repository và giữ nguyên đường dẫn tương đối.
+Trong repository học phần, bộ file A.1 được đặt tại `Credit-Card-Fraud-Risk-A1/`. Nếu chạy độc lập,
+hãy chạy lệnh từ thư mục dự án này và giữ nguyên các đường dẫn tương đối.
 
 ## 3. Cách chạy trên Windows
 
@@ -57,7 +57,7 @@ Mở **Anaconda Prompt** hoặc PowerShell đã kích hoạt Conda:
 
 ```powershell
 conda activate ds_course
-cd "DUONG_DAN_DEN_ECCC-LITE-A1"
+cd "DUONG_DAN_DEN_Credit-Card-Fraud-Risk-A1"
 python -m pip install -r requirements.txt
 python scripts/run_a1.py
 ```
@@ -75,7 +75,7 @@ python scripts/run_a1.py --skip-download
 
 ```powershell
 conda env create -f environment.yml
-conda activate eccc-lite
+conda activate credit-card-fraud-risk-a1
 python scripts/run_a1.py
 ```
 

@@ -37,7 +37,7 @@ def download(url: str, destination: Path) -> None:
     if partial.exists():
         partial.unlink()
 
-    request = urllib.request.Request(url, headers={"User-Agent": "ECCC-LITE-A1/1.0"})
+    request = urllib.request.Request(url, headers={"User-Agent": "Credit-Card-Fraud-Risk-A1/1.0"})
     with urllib.request.urlopen(request, timeout=60) as response, partial.open("wb") as output:
         shutil.copyfileobj(response, output, length=1 << 20)
 

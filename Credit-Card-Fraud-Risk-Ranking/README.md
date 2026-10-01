@@ -1,4 +1,4 @@
-# ECCC-LITE — Xếp hạng nguy cơ gian lận thẻ
+# Phân tích dữ liệu và xếp hạng nguy cơ gian lận trong giao dịch thẻ
 
 Dự án môn Cơ sở Khoa học Dữ liệu: kiểm chứng dữ liệu, EDA, huấn luyện và so sánh mô hình, khóa lựa chọn trên validation, đánh giá test, xếp hạng Top-p và lập báo cáo có thể truy vết.
 
@@ -35,7 +35,7 @@ Biểu đồ Seaborn lấy 5.000 giao dịch hợp lệ và toàn bộ 284 fraud
 ## Cấu trúc chính
 
 ```text
-ECCC-LITE-FINAL/
+Credit-Card-Fraud-Risk-Ranking/
 ├── notebooks/                  # 4 notebook nguồn
 ├── src/                         # tiện ích dữ liệu, modeling, evaluation
 ├── scripts/                     # chạy pipeline, tạo báo cáo, verifier
@@ -49,7 +49,7 @@ ECCC-LITE-FINAL/
 ```powershell
 # Tạo môi trường một lần, từ thư mục dự án:
 conda env create -f environment.yml
-conda activate eccc-lite
+conda activate credit-card-fraud-risk
 
 python -m pip install -r requirements.txt
 python -X utf8 scripts/run_full_project.py

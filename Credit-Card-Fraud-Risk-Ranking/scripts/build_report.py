@@ -332,7 +332,7 @@ def add_toc_before(section_break, doc: Document) -> None:
     pages = json.loads(pages_path.read_text(encoding="utf-8")) if pages_path.exists() else {}
     headings = [p for p in doc.paragraphs if p.style.name in ("Heading 1", "Heading 2")]
     for index, heading in enumerate(headings):
-        anchor = f"eccc_heading_{index}"
+        anchor = f"fraud_heading_{index}"
         start = OxmlElement("w:bookmarkStart")
         start.set(qn("w:id"), str(1000 + index)); start.set(qn("w:name"), anchor)
         end = OxmlElement("w:bookmarkEnd"); end.set(qn("w:id"), str(1000 + index))
