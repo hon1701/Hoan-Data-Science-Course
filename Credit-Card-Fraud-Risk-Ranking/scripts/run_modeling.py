@@ -1,4 +1,4 @@
-"""Train validation-selected models for the full ECCC-LITE project."""
+"""Train validation-selected models for the full Credit-Card-Fraud-Risk-Ranking project."""
 
 from __future__ import annotations
 

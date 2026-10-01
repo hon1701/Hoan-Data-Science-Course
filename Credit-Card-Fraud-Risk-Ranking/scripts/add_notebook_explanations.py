@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def cell(kind: str, text: str, key: str) -> dict:
-    result = {"cell_type": kind, "metadata": {}, "id": "eccc-" + hashlib.sha256(key.encode()).hexdigest()[:8],
+    result = {"cell_type": kind, "metadata": {}, "id": "fraud-" + hashlib.sha256(key.encode()).hexdigest()[:8],
               "source": text.splitlines(keepends=True)}
     if kind == "code":
         result.update(execution_count=None, outputs=[])
@@ -59,7 +59,7 @@ def enhance(root: Path = ROOT) -> None:
         path = root / "notebooks" / name
         notebook = json.loads(path.read_text(encoding="utf-8"))
         # Replace only the cells this helper owns. Other authored EDA cells must survive rebuilds.
-        owned_ids = {"eccc-" + hashlib.sha256((name + suffix).encode()).hexdigest()[:8]
+        owned_ids = {"fraud-" + hashlib.sha256((name + suffix).encode()).hexdigest()[:8]
                      for suffix in ("intro", "interpret", "code")}
         cells = [c for c in notebook["cells"] if c.get("id") not in owned_ids]
         cells.insert(1, cell("markdown", intro, name + "intro"))

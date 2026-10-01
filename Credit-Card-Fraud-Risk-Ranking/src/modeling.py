@@ -1,4 +1,4 @@
-"""Leakage-safe model training for the ECCC-LITE fraud project.
+"""Leakage-safe model training for the Credit-Card-Fraud-Risk-Ranking fraud project.
 
 Model selection is performed on the validation split only.  The test split is
 deliberately not read by this module.

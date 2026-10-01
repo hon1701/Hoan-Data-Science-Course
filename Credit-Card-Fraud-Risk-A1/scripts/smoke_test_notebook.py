@@ -39,7 +39,7 @@ def make_data(path: Path) -> None:
 
 
 def main() -> None:
-    with tempfile.TemporaryDirectory(prefix="eccc_a1_smoke_") as temporary:
+    with tempfile.TemporaryDirectory(prefix="fraud_a1_smoke_") as temporary:
         temp = Path(temporary)
         raw_path = temp / "creditcard.csv"
         output_root = temp / "run"

@@ -1,14 +1,16 @@
-name: ECCC real data validation
+name: Credit Card Fraud Risk Validation
 on:
   workflow_dispatch:
   push:
-    branches: [codex/eccc-final-20260929]
+    branches: [main]
+    paths:
+      - 'Credit-Card-Fraud-Risk-Ranking/**'
+      - '.github/workflows/credit-card-fraud-validation.yml'
   pull_request:
     branches: [main]
     paths:
-      - 'ECCC-LITE-FINAL/**'
-      - '.github/workflows/eccc-validation.yml'
-      - '.github/workflows/eccc-validation.yml'
+      - 'Credit-Card-Fraud-Risk-Ranking/**'
+      - '.github/workflows/credit-card-fraud-validation.yml'
 permissions:
   contents: read
 jobs:
@@ -22,7 +24,7 @@ jobs:
       OPENBLAS_NUM_THREADS: '2'
     defaults:
       run:
-        working-directory: ECCC-LITE-FINAL
+        working-directory: Credit-Card-Fraud-Risk-Ranking
         shell: bash
     steps:
       - uses: actions/checkout@v7
@@ -40,14 +42,14 @@ jobs:
       - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: eccc-verified-results
+          name: credit-card-fraud-risk-results
           retention-days: 30
           if-no-files-found: error
           path: |
-            ECCC-LITE-FINAL/outputs/tables/
-            ECCC-LITE-FINAL/outputs/figures/
-            ECCC-LITE-FINAL/outputs/notebooks/
-            ECCC-LITE-FINAL/outputs/tests.xml
-            ECCC-LITE-FINAL/outputs/pipeline.log
-            ECCC-LITE-FINAL/outputs/run_manifest.json
-            ECCC-LITE-FINAL/outputs/requirements-lock.txt
+            Credit-Card-Fraud-Risk-Ranking/outputs/tables/
+            Credit-Card-Fraud-Risk-Ranking/outputs/figures/
+            Credit-Card-Fraud-Risk-Ranking/outputs/notebooks/
+            Credit-Card-Fraud-Risk-Ranking/outputs/tests.xml
+            Credit-Card-Fraud-Risk-Ranking/outputs/pipeline.log
+            Credit-Card-Fraud-Risk-Ranking/outputs/run_manifest.json
+            Credit-Card-Fraud-Risk-Ranking/outputs/requirements-lock.txt
